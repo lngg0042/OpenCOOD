@@ -1,3 +1,7 @@
+# configures a cooperative 3D object detection model using PointPillar for feature extraction, V2VNet for multi-agent fusion, 
+# with detailed settings for data preparation, augmentation, anchor generation, model backbone, optimizer, and scheduler. Every section is 
+# modular, supporting different methods for fusion, preprocessing, postprocessing, and loss, making it highly flexible for research in multi-agent 
+# autonomous systems.
 # Basic path and settings
 name: point_pillar_v2vnet
 root_dir: 'opv2v_data_dumping/train'
