@@ -25,12 +25,20 @@ from opencood.utils.transformation_utils import x1_to_x2
 
 class EarlyFusionVisDataset(basedataset.BaseDataset):
     def __init__(self, params, visualize, train=True):
+        """
+        Calls the base dataset constructor.
+        Initializes:
+            self.pre_processor for pre-processing raw data (e.g., filtering, augmentation).
+            self.post_processor for post-processing (e.g., bounding box handling).
+        params contains configuration for preprocessing, postprocessing, and data ranges.
+        """
         super(EarlyFusionVisDataset, self).__init__(params, visualize, train)
         self.pre_processor = build_preprocessor(params['preprocess'],
                                                 train)
         self.post_processor = build_postprocessor(params['postprocess'], train)
 
     def __getitem__(self, idx):
+        # retrieve raw data
         base_data_dict = self.retrieve_base_data(idx)
 
         processed_data_dict = OrderedDict()
@@ -109,6 +117,12 @@ class EarlyFusionVisDataset(basedataset.BaseDataset):
              'object_ids': [object_id_stack[i] for i in unique_indices],
              'origin_lidar': projected_lidar_stack
              })
+        
+        # Returns a dictionary with:
+        # object_bbx_center: Bounding box centers and sizes.
+        # object_bbx_mask: Mask indicating valid boxes.
+        # object_ids: Unique object IDs.
+        # origin_lidar: Stacked LiDAR points after processing.
 
         return processed_data_dict
 
@@ -116,6 +130,12 @@ class EarlyFusionVisDataset(basedataset.BaseDataset):
         """
         Project the lidar and bbx to ego space first, and then do clipping.
 
+        Processes a single CAV's data:
+            Computes transformation from the CAV's LiDAR frame to the ego vehicle's frame.
+            Projects all LiDAR points and bounding boxes to the ego frame.
+            Filters out points corresponding to the CAV itself (to avoid self-collision).
+            Returns processed LiDAR, object centers, and IDs.
+        
         Parameters
         ----------
         selected_cav_base : dict
@@ -161,6 +181,9 @@ class EarlyFusionVisDataset(basedataset.BaseDataset):
         """
         Customized collate function for pytorch dataloader during training
         for late fusion dataset.
+
+        Converts lists of bounding boxes, masks, and LiDAR points into tensors (ready for neural network input).
+        Ensures all output is associated with the ego vehicle (no multi-agent fusion in the batch dimension).
 
         Parameters
         ----------
