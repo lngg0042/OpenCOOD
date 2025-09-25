@@ -7,6 +7,26 @@
 # optimizer: adam optimizer
 # learning rate scheduler: multi step schedule with decap at epochs 10,50,80
 
+# voxelization:  transforms irregular, sparse point clouds into a structured format that neural networks (especially 3D CNNs) can efficiently process.
+# Dividing 3D space into small cubes
+
+# anchor-based: predicts confidence score for each anchor (object detection model)
+
+# adam optimizer: (adaptive moment estimation) optimizationi algo to train neural networks 
+# combines ideas from two other methods—AdaGrad and RMSProp: adaptive learning rates + momentum
+# Learning rate (lr): e.g., 0.001
+# stepsize for weight updates high learning rate cause overshooting
+# Beta1 (decay rate for first moment, momentum): e.g., 0.9
+# how much of the past gradient (momentum) is kept. A value close to 1 means long-term memory.
+# Beta2 (decay rate for second moment): e.g., 0.999 
+# It helps keep track of how large the gradients are on average, smoothing out large spikes.
+# Epsilon (for numerical stability): e.g., 1e-8
+# beta: exponential decay rate
+# epsilon: prevent division by zero, small constant added to the denominator to improve numerical stability
+# gradient: current position tells you the direction and steepness of the slope (backpropagation), 
+# enabling the optimizer to update the model parameters.
+# a vector (a list of numbers) that points in the direction of the greatest rate of increase of a function. In simpler terms, it tells you how much a function changes as you change its inputs.
+
 # Basic path and settings
 name: point_pillar_v2vnet
 root_dir: 'opv2v_data_dumping/train'
