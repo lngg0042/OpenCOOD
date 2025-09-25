@@ -2,6 +2,21 @@
 # Author: Runsheng Xu <rxx3386@ucla.edu>, Hao Xiang <haxiang@g.ucla.edu>,
 # License: TDG-Attribution-NonCommercial-NoDistrib
 
+"""
+High-Level Purpose
+
+Visualization of Point Clouds and Bounding Boxes:
+The file provides functions to render Lidar point clouds, as well as 3D and 2D bounding boxes (predictions and ground truth), using both Open3D and matplotlib/plt.
+
+Support for Different Visualization Modes:
+Handles visualization in 3D (with color encodings), bird’s eye view (BEV), and for both individual samples and sequences.
+
+Handles Different Data Formats:
+Functions convert between PyTorch tensors and numpy arrays as needed, and can handle both oriented (OABB) and axis-aligned (AABB) bounding boxes.
+
+
+
+"""
 import time
 
 import cv2
@@ -22,6 +37,9 @@ VID_RANGE = np.linspace(0.0, 1.0, VIRIDIS.shape[0])
 def bbx2linset(bbx_corner, order='hwl', color=(0, 1, 0)):
     """
     Convert the torch tensor bounding box to o3d lineset for visualization.
+
+    Converts bounding box corners to Open3D LineSet objects for wireframe box visualization. Can handle input as PyTorch tensors or numpy arrays, and supports both (n,8,3) and (n,7) box formats.
+    Used for drawing box "edges" in 3D scenes.
 
     Parameters
     ----------
@@ -72,6 +90,7 @@ def bbx2linset(bbx_corner, order='hwl', color=(0, 1, 0)):
 def bbx2oabb(bbx_corner, order='hwl', color=(0, 0, 1)):
     """
     Convert the torch tensor bounding box to o3d oabb for visualization.
+    oabb: boxes that can be rotated
 
     Parameters
     ----------
@@ -115,7 +134,8 @@ def bbx2oabb(bbx_corner, order='hwl', color=(0, 0, 1)):
 def bbx2aabb(bbx_center, order):
     """
     Convert the torch tensor bounding box to o3d aabb for visualization.
-
+    aabb: axis aligned (not rotated)
+    
     Parameters
     ----------
     bbx_center : torch.Tensor
@@ -157,6 +177,8 @@ def linset_assign_list(vis,
     """
     Associate two lists of lineset.
 
+    Utilities for copying attributes between Open3D LineSet objects, and for updating lists of them in a scene.
+    
     Parameters
     ----------
     vis : open3d.Visualizer
@@ -180,6 +202,8 @@ def lineset_assign(lineset1, lineset2):
     """
     Assign the attributes of lineset2 to lineset1.
 
+    Utilities for copying attributes between Open3D LineSet objects, and for updating lists of them in a scene.
+    
     Parameters
     ----------
     lineset1 : open3d.LineSet
@@ -324,7 +348,7 @@ def visualize_single_sample_output_bev(pred_box, gt_box, pcd, dataset,
                                        save_path=''):
     """
     Visualize the prediction, groundtruth with point cloud together in
-    a bev format.
+    a bev format. Using matplotlib
 
     Parameters
     ----------
@@ -398,6 +422,9 @@ def visualize_single_sample_dataloader(batch_data,
     """
     Visualize a single frame of a single CAV for validation of data pipeline.
 
+    Visualizes a single data sample (from a batch) with its point cloud and bounding 
+    boxes (AABB or OABB), optionally saving the image.
+
     Parameters
     ----------
     o3d_pcd : o3d.PointCloud
@@ -462,6 +489,8 @@ def visualize_inference_sample_dataloader(pred_box_tensor,
     """
     Visualize a frame during inference for video stream.
 
+    For video/sequence inference, visualizes predictions and ground truth at every frame.
+    
     Parameters
     ----------
     pred_box_tensor : torch.Tensor
@@ -513,7 +542,7 @@ def visualize_inference_sample_dataloader(pred_box_tensor,
 def visualize_sequence_dataloader(dataloader, order, color_mode='constant'):
     """
     Visualize the batch data in animation.
-
+    
     Parameters
     ----------
     dataloader : torch.Dataloader
@@ -593,6 +622,9 @@ def save_o3d_visualization(element, save_path):
 
 
 def visualize_bev(batch_data):
+    """
+    Visualizes BEV input and label maps (e.g., for semantic segmentation tasks).
+    """
     bev_input = batch_data["processed_lidar"]["bev_input"]
     label_map = batch_data["label_dict"]["label_map"]
     if not isinstance(bev_input, np.ndarray):
@@ -614,6 +646,7 @@ def visualize_bev(batch_data):
 
 def draw_box_plt(boxes_dec, ax, color=None, linewidth_scale=1.0):
     """
+    Draws 2D bounding boxes on a matplotlib axis, handling box rotation and orientation.
     draw boxes in a given plt ax
     :param boxes_dec: (N, 5) or (N, 7) in metric
     :param ax:
@@ -652,6 +685,9 @@ def draw_box_plt(boxes_dec, ax, color=None, linewidth_scale=1.0):
 
 def draw_points_boxes_plt(pc_range, points=None, boxes_pred=None, boxes_gt=None, save_path=None,
                           points_c='y.', bbox_gt_c='green', bbox_pred_c='red', return_ax=False, ax=None):
+    """
+    Plots point clouds and boxes in BEV using matplotlib, with options for colors and saving the image.
+    """
     if ax is None:
         ax = plt.figure(figsize=(15, 6)).add_subplot(1, 1, 1)
         ax.set_aspect('equal', 'box')
