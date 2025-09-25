@@ -11,6 +11,10 @@ class BasePreprocessor(object):
     """
     Basic Lidar pre-processor.
 
+    This file defines the BasePreprocessor class, which provides basic preprocessing utilities for Lidar point 
+    cloud data in the OpenCOOD framework. The class includes methods for downsampling Lidar points and projecting 
+    them onto a Bird’s Eye View (BEV) occupancy map.
+    
     Parameters
     ----------
     preprocess_params : dict
@@ -32,15 +36,26 @@ class BasePreprocessor(object):
         ----------
         pcd_np : np.ndarray
             The raw lidar.
+            The raw Lidar point cloud as a NumPy array.
 
         Returns
         -------
         data_dict : the output dictionary.
+
+        The class provides basic preprocessing for Lidar point clouds:
+           -  Downsampling to a fixed number of points.
+           -  Projecting 3D points into a 2D BEV occupancy map.
+
+        It is designed to be extended or used as a component for more complex preprocessing pipelines 
+        in autonomous driving or sensor fusion tasks.
         """
         data_dict = {}
+        # It retrieves the number of points to sample from self.params.
         sample_num = self.params['args']['sample_num']
 
+        # Calls downsample_lidar from pcd_utils to downsample the input point cloud to the specified number.
         pcd_np = pcd_utils.downsample_lidar(pcd_np, sample_num)
+        # Returns a dictionary with the downsampled points under the key 'downsample_lidar'.
         data_dict['downsample_lidar'] = pcd_np
 
         return data_dict
@@ -62,6 +77,16 @@ class BasePreprocessor(object):
         bev_map : np.ndarray
             BEV occupancy map including projected points with shape
             (img_row, img_col).
+
+        points: The input point cloud (NumPy array, shape (N, 3) or (N, 4)).
+        ratio: Discretization parameter for the BEV map resolution (default 0.1).
+        cav_lidar_range: 6D vector (L1, W1, H1, L2, W2, H2) defining the region of interest for Lidar data.
+        Calculates the BEV map size based on the range and ratio.
+        Initializes a blank BEV map.
+        Transforms 3D point coordinates into BEV map indices using the origin and ratio.
+        Applies a mask so only points within the valid BEV area are considered.
+        Sets the corresponding cells in the BEV map to 1 where points exist.
+        Returns the BEV occupancy map (binary image of Lidar point locations).
 
         """
         L1, W1, H1, L2, W2, H2 = self.params["cav_lidar_range"]
