@@ -4,6 +4,20 @@
 
 """
 Dataset class for early fusion
+
+This file defines EarlyFusionDataset, a dataset class for early fusion 
+in cooperative perception (multi-agent/collaborative vehicle scenarios). In early fusion, 
+each Connected and Autonomous Vehicle (CAV) transmits its raw point cloud data to a central "ego" vehicle, 
+which then fuses all these point clouds for downstream perception tasks like object detection.
+
+Utility Functions
+mask_points_by_range: Filters out points outside a specified ROI.
+mask_ego_points: Removes lidar points that hit the ego vehicle itself.
+shuffle_points: Randomizes point order for augmentation.
+downsample_lidar_minimum: Downsamples point clouds for visualization.
+x1_to_x2: Computes transformation matrices between coordinate frames.
+box_utils.mask_boxes_outside_range_numpy: Filters out bounding boxes outside ROI.
+
 """
 import random
 import math
@@ -29,12 +43,21 @@ class EarlyFusionDataset(basedataset.BaseDataset):
     point cloud to the ego vehicle.
     """
     def __init__(self, params, visualize, train=True):
+        """
+        Builds pre- and post-processors from configuration params.
+        visualize flag toggles extra data for visualization.
+        train indicates train/test mode.
+        """
         super(EarlyFusionDataset, self).__init__(params, visualize, train)
         self.pre_processor = build_preprocessor(params['preprocess'],
                                                 train)
         self.post_processor = build_postprocessor(params['postprocess'], train)
 
     def __getitem__(self, idx):
+        """
+        Loads and processes a single sample (indexed by idx)
+        """
+        # Loads base data: Calls retrieve_base_data(idx) (from parent) to get the raw sample dictionary
         base_data_dict = self.retrieve_base_data(idx)
 
         processed_data_dict = OrderedDict()
@@ -58,6 +81,9 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         object_id_stack = []
 
         # loop over all CAVs to process information
+        # Checks if the CAV is within a preset communication range to the ego vehicle.
+        # Calls get_item_single_car to project its lidar and objects into ego coordinates and filter/process its data.
+        # Stacks all CAVs' projected lidar and object data.
         for cav_id, selected_cav_base in base_data_dict.items():
             # check if the cav is within the communication range with ego
             distance = \
@@ -93,6 +119,7 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         mask[:object_stack.shape[0]] = 1
 
         # convert list to numpy array, (N, 4)
+        # pads/truncates bounding boxes to a consistent number.
         projected_lidar_stack = np.vstack(projected_lidar_stack)
 
         # data augmentation
@@ -140,15 +167,22 @@ class EarlyFusionDataset(basedataset.BaseDataset):
              'processed_lidar': lidar_dict,
              'label_dict': label_dict})
 
+        # Assembles processed sample. If visualize is set, also saves the original lidar.
         if self.visualize:
             processed_data_dict['ego'].update({'origin_lidar':
                                                    projected_lidar_stack})
 
+        # Returns: An OrderedDict with all processed data for the ego vehicle.
         return processed_data_dict
 
     def get_item_single_car(self, selected_cav_base, ego_pose):
         """
         Project the lidar and bbx to ego space first, and then do clipping.
+
+        Transforms CAV's lidar and bounding boxes to the ego vehicle's coordinate frame.
+        Filters lidar points (e.g., shuffles, removes ego points).
+        Projects points using transformation matrix.
+        Returns: Dictionary with processed lidar, bounding boxes, and IDs.
 
         Parameters
         ----------
@@ -195,6 +229,11 @@ class EarlyFusionDataset(basedataset.BaseDataset):
         """
         Customized collate function for pytorch dataloader during testing
         for late fusion dataset.
+
+        Restricts batch size to 1 (no batching in test mode).
+        Converts numpy arrays to torch tensors.
+        Collates lidar, anchor boxes, labels, and object IDs for each CAV in the batch.
+        Handles visualization data if enabled.
 
         Parameters
         ----------
