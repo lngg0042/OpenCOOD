@@ -28,8 +28,9 @@ def load_yaml(file, opt=None):
         A dictionary that contains defined parameters.
     """
     if opt and opt.model_dir:
-        file = os.path.join(opt.model_dir, 'config.yaml')
-
+        file = os.path.join(opt.model_dir, 'config.yaml') # loads 'config.yaml' from that directory
+    
+    # uses a custom yaml loader to correctly parse floating-point values
     stream = open(file, 'r')
     loader = yaml.Loader
     loader.add_implicit_resolver(
@@ -46,12 +47,12 @@ def load_yaml(file, opt=None):
     if "yaml_parser" in param:
         param = eval(param["yaml_parser"])(param)
 
-    return param
+    return param # pared parameters as a dictionary
 
 
 def load_voxel_params(param):
     """
-    Based on the lidar range and resolution of voxel, calcuate the anchor box
+    Based on the lidar range and resolution of voxel (voxel size), calcuate the anchor box
     and target resolution.
 
     Parameters
@@ -64,14 +65,17 @@ def load_voxel_params(param):
     param : dict
         Modified parameter dictionary with new attribute `anchor_args[W][H][L]`
     """
+    # Extracts LiDAR range and voxel size from param.
     anchor_args = param['postprocess']['anchor_args']
     cav_lidar_range = anchor_args['cav_lidar_range']
-    voxel_size = param['preprocess']['args']['voxel_size']
+    voxel_size = param['preprocess']['args']['voxel_size'] 
 
+    # Computes the number of voxels (W, H, D) in each dimension.
     vw = voxel_size[0]
     vh = voxel_size[1]
     vd = voxel_size[2]
 
+    # Updates anchor_args in param['postprocess']
     anchor_args['vw'] = vw
     anchor_args['vh'] = vh
     anchor_args['vd'] = vd
@@ -81,7 +85,8 @@ def load_voxel_params(param):
     anchor_args['D'] = int((cav_lidar_range[5] - cav_lidar_range[2]) / vd)
 
     param['postprocess'].update({'anchor_args': anchor_args})
-
+    
+    # If a model key exists, also stores W/H/D in param['model']['args']
     # sometimes we just want to visualize the data without implementing model
     if 'model' in param:
         param['model']['args']['W'] = anchor_args['W']
@@ -106,6 +111,7 @@ def load_point_pillar_params(param):
     param : dict
         Modified parameter dictionary with new attribute.
     """
+    # Computes grid size (grid_size) as the difference between LiDAR range endpoints divided by voxel size.
     cav_lidar_range = param['preprocess']['cav_lidar_range']
     voxel_size = param['preprocess']['args']['voxel_size']
 
@@ -113,6 +119,7 @@ def load_point_pillar_params(param):
         cav_lidar_range[0:3])) / \
                 np.array(voxel_size)
     grid_size = np.round(grid_size).astype(np.int64)
+    # Stores grid_size in param['model']['args']['point_pillar_scatter'].
     param['model']['args']['point_pillar_scatter']['grid_size'] = grid_size
 
     anchor_args = param['postprocess']['anchor_args']
@@ -137,7 +144,7 @@ def load_point_pillar_params(param):
 def load_second_params(param):
     """
     Based on the lidar range and resolution of voxel, calcuate the anchor box
-    and target resolution.
+    and target resolution. (For second model)
 
     Parameters
     ----------
@@ -157,7 +164,8 @@ def load_second_params(param):
                 np.array(voxel_size)
     grid_size = np.round(grid_size).astype(np.int64)
     param['model']['args']['grid_size'] = grid_size
-
+    
+    # Updates anchor arguments with voxel sizes and grid dimensions (W, H, D) using integer division.
     anchor_args = param['postprocess']['anchor_args']
 
     vw = voxel_size[0]
@@ -182,6 +190,8 @@ def load_bev_params(param):
     Load bev related geometry parameters s.t. boundary, resolutions, input
     shape, target shape etc.
 
+    Computes and stores Bird’s Eye View (BEV) geometry parameters.
+    
     Parameters
     ----------
     param : dict
@@ -193,10 +203,12 @@ def load_bev_params(param):
         Modified parameter dictionary with new attribute `geometry_param`.
 
     """
+    # Extracts resolution, LiDAR range, and downsample rate.
     res = param["preprocess"]["args"]["res"]
     L1, W1, H1, L2, W2, H2 = param["preprocess"]["cav_lidar_range"]
     downsample_rate = param["preprocess"]["args"]["downsample_rate"]
 
+    # Computes input and label shapes based on these values.
     def f(low, high, r):
         return int((high - low) / r)
 
@@ -210,6 +222,8 @@ def load_bev_params(param):
         int(input_shape[1] / downsample_rate),
         7
     )
+    # Packs all geometry parameters into a geometry_param dict, and stores it in param["preprocess"], 
+    # param["postprocess"], and param["model"]["args"].
     geometry_param = {
         'L1': L1,
         'L2': L2,
@@ -247,7 +261,7 @@ def save_yaml(data, save_name):
 
 def save_yaml_wo_overwriting(data, save_name):
     """
-    Save the yaml file without overwriting the existing one.
+    Save the yaml file without overwriting the existing one. (merges new data with old)
 
     Parameters
     ----------
@@ -257,6 +271,7 @@ def save_yaml_wo_overwriting(data, save_name):
     save_name : string
         Full path of the output yaml file.
     """
+    # If save_name exists, loads previous data and merges it (existing keys take precedence).
     if os.path.exists(save_name):
         prev_data = load_yaml(save_name)
         data = {**data, **prev_data}
