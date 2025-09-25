@@ -38,6 +38,7 @@ class LateFusionDataset(basedataset.BaseDataset):
 
     def __getitem__(self, idx):
         base_data_dict = self.retrieve_base_data(idx)
+        # Depend on train/test mode, calls either
         if self.train:
             reformat_data_dict = self.get_item_train(base_data_dict)
         else:
@@ -95,7 +96,7 @@ class LateFusionDataset(basedataset.BaseDataset):
                                        'object_bbx_mask': object_bbx_mask,
                                        'object_ids': object_ids})
 
-        # generate targets label
+        # generate targets label for training
         label_dict = \
             self.post_processor.generate_label(
                 gt_box_center=object_bbx_center,
@@ -108,7 +109,7 @@ class LateFusionDataset(basedataset.BaseDataset):
     def get_item_train(self, base_data_dict):
         processed_data_dict = OrderedDict()
 
-        # during training, we return a random cav's data
+        # during training, we return a random cav's data (or always the first if visualizing)
         if not self.visualize:
             selected_cav_id, selected_cav_base = \
                 random.choice(list(base_data_dict.items()))
@@ -119,7 +120,7 @@ class LateFusionDataset(basedataset.BaseDataset):
         selected_cav_processed = self.get_item_single_car(selected_cav_base)
         processed_data_dict.update({'ego': selected_cav_processed})
 
-        return processed_data_dict
+        return processed_data_dict # Returns only the processed data for the chosen "ego" CAV.
 
     def get_item_test(self, base_data_dict):
         processed_data_dict = OrderedDict()
@@ -148,6 +149,10 @@ class LateFusionDataset(basedataset.BaseDataset):
                 continue
 
             # find the transformation matrix from current cav to ego.
+            
+            # Stacks and reformats all relevant data for model input.
+            # Handles stacking/transforming LIDAR points for visualization.
+            # Converts data to PyTorch tensors.
             cav_lidar_pose = selected_cav_base['params']['lidar_pose']
             transformation_matrix = x1_to_x2(cav_lidar_pose, ego_lidar_pose)
 
