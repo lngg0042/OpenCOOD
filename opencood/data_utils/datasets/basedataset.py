@@ -39,11 +39,11 @@ class BaseDataset(Dataset):
     Attributes
     ----------
     scenario_database : OrderedDict
-        A structured dictionary contains all file information.
+        A structured dictionary contains all file information. (all CAVs and timestamps)
 
     len_record : list
         The list to record each scenario's data length. This is used to
-        retrieve the correct index during training.
+        retrieve the correct index during training. (number of frames per scenario)
 
     pre_processor : opencood.pre_processor
         Used to preprocess the raw data.
@@ -58,9 +58,15 @@ class BaseDataset(Dataset):
     """
 
     def __init__(self, params, visualize, train=True):
+        """
+        Loads parameters and initializes data augmentor, wild settings (like async, noise, delays), and scenario directories.
+        Builds a structured scenario_database:
+        Scenario → CAV → Timestamp → {yaml, lidar, camera files}
+        Handles special cases like limiting the number of CAVs, handling roadside units, and managing ego/non-ego vehicles.
+        """
         self.params = params
-        self.visualize = visualize
-        self.train = train
+        self.visualize = visualize # Boolean flag to save raw point cloud data for visualization.
+        self.train = train # Training mode flag
 
         self.pre_processor = None
         self.post_processor = None
@@ -188,17 +194,24 @@ class BaseDataset(Dataset):
                     self.scenario_database[i][cav_id]['ego'] = False
 
     def __len__(self):
+        """
+        returns the total number of frames available across all scenarios.
+        """
         return self.len_record[-1]
 
     def __getitem__(self, idx):
         """
-        Abstract method, needs to be define by the children class.
+        Abstract method, needs to be define by the children class. for retrieving a sample by index.
         """
         pass
 
     def retrieve_base_data(self, idx, cur_ego_pose_flag=True):
         """
         Given the index, return the corresponding data.
+
+        Given an index, finds the corresponding scenario/timestamp.
+        For each CAV at that timestamp, loads YAML, LiDAR, and camera data, accounting for time delays and localization errors if configured.
+        Returns an ordered dictionary of this data for all CAVs.
 
         Parameters
         ----------
@@ -266,7 +279,8 @@ class BaseDataset(Dataset):
     def extract_timestamps(yaml_files):
         """
         Given the list of the yaml files, extract the mocked timestamps.
-
+        Extracts timestamp strings from a list of YAML file paths.
+        
         Parameters
         ----------
         yaml_files : list
@@ -315,7 +329,7 @@ class BaseDataset(Dataset):
 
     def calc_dist_to_ego(self, scenario_database, timestamp_key):
         """
-        Calculate the distance to ego for each cav.
+        Calculate the Euclidean distance to ego for each cav. for a given timestamp
         """
         ego_lidar_pose = None
         ego_cav_content = None
@@ -345,6 +359,9 @@ class BaseDataset(Dataset):
     def time_delay_calculation(self, ego_flag):
         """
         Calculate the time delay for a certain vehicle.
+        
+        Calculates the time delay for each CAV, depending on configuration (async modes, transmission speed, backbone delay).
+        The ego vehicle always has zero delay.
 
         Parameters
         ----------
@@ -379,6 +396,8 @@ class BaseDataset(Dataset):
         """
         Add localization noise to the pose.
 
+        Adds Gaussian noise to the localization pose of CAVs for simulating errors.
+
         Parameters
         ----------
         pose : list
@@ -406,7 +425,18 @@ class BaseDataset(Dataset):
         """
         Reform the data params with current timestamp object groundtruth and
         delay timestamp LiDAR pose for other CAVs.
+        
+        Reformulates the parameters for a CAV, especially to handle time delays and localization noise.
+        Computes transformation matrices from CAV to ego frames at the correct time.
 
+        It merges and adjusts the parameters (such as poses and transformation matrices) for a CAV, handling 
+        situations where there may be a time delay or localization noise between the CAV's data and the ego vehicle's 
+        data. This ensures that the data from each CAV is correctly transformed and aligned with the ego vehicle for 
+        the current timestamp, which is critical for accurate sensor/data fusion.
+
+        The method ensures all CAV data is aligned to a common reference frame (ego vehicle, current time) with realistic 
+        delays and possible localization errors, making the dataset suitable for robust training/testing.
+        
         Parameters
         ----------
         cav_content : dict
@@ -479,6 +509,8 @@ class BaseDataset(Dataset):
         """
         Retrieve the paths to all camera files.
 
+        Returns file paths for four camera images at a given timestamp.
+
         Parameters
         ----------
         cav_path : str
@@ -506,6 +538,8 @@ class BaseDataset(Dataset):
         """
         Project points to BEV occupancy map with default ratio=0.1.
 
+        Projects 3D points to a BEV (Bird’s-Eye View) occupancy map using the pre-processor.
+
         Parameters
         ----------
         points : np.ndarray
@@ -526,6 +560,8 @@ class BaseDataset(Dataset):
     def augment(self, lidar_np, object_bbx_center, object_bbx_mask):
         """
         Given the raw point cloud, augment by flipping and rotation.
+
+        Applies data augmentation (flipping, rotation) to LiDAR and bounding box data.
 
         Parameters
         ----------
@@ -553,6 +589,9 @@ class BaseDataset(Dataset):
         """
         Customized collate function for pytorch dataloader during training
         for early and late fusion dataset.
+
+        Custom PyTorch collate function for batching during training.
+        Assembles lists of data for ego vehicles (object bboxes, masks, LiDARs, labels) into batch tensors.
 
         Parameters
         ----------
@@ -610,6 +649,10 @@ class BaseDataset(Dataset):
                          show_vis,
                          save_path,
                          dataset=None):
+         """
+         Uses the post-processor’s visualize method to display or save predicted and ground truth 
+         bounding boxes over point cloud data.
+         """
         # visualize the model output
         self.post_processor.visualize(pred_box_tensor,
                                       gt_tensor,
