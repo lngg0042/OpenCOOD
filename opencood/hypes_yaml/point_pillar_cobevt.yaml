@@ -5,6 +5,15 @@
 # Training: Adam optimizer, cosine annealing schedule, up to 5 vehicles.
 # Simulation: Optional asynchrony, delays, and noise to match real-world conditions.
 
+# transformer: transformer-based neural networks (originally developed for NLP) to 
+# process and fuse information from multiple agents.
+
+# cosine annealing: learning rate schedule that smoothly decreases the LR following a cosine curve
+# Instead of reducing the learning rate at fixed steps (like step decay), the learning rate smoothly decreases following a cosine curve.
+# Helps avoid getting stuck in poor local minima.
+# Often leads to better convergence and sometimes improved model performance.
+# The smooth adjustment can help the optimizer “settle” into a better solution at the end of training.
+
 name: corpbevtlidar
 root_dir: 'v2xset/train'
 validate_dir: 'v2xset/validate'
