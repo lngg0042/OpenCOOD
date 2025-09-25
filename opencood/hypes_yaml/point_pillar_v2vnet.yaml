@@ -1,19 +1,20 @@
+# Basic path and settings
 name: point_pillar_v2vnet
 root_dir: 'opv2v_data_dumping/train'
 validate_dir: 'opv2v_data_dumping/validate'
 
-yaml_parser: "load_point_pillar_params"
+yaml_parser: "load_point_pillar_params" # parse these parameters
 train_params:
-  batch_size: &batch_size 4
-  epoches: 60
-  eval_freq: 1
+  batch_size: &batch_size 4 # Number of samples per batch
+  epoches: 60 # Number of training epochs
+  eval_freq: 1 # How often to evaluate during training (in epochs)
   save_freq: 1
-  max_cav: &max_cav 5
+  max_cav: &max_cav 5 # Maximum no. of Connected Autonomous Vehicles (CAVs) involved in cooperative perception
 
 fusion:
   core_method: 'IntermediateFusionDataset' # LateFusionDataset, EarlyFusionDataset, IntermediateFusionDataset supported
   args:
-    proj_first: true
+    proj_first: true # Whether to project features before fusion
 
 # preprocess-related
 preprocess:
@@ -28,19 +29,22 @@ preprocess:
   cav_lidar_range: &cav_lidar [-140.8, -40, -3, 140.8, 40, 1]
 
 data_augment:
+  # randomly flip the scene along the x-axis
   - NAME: random_world_flip
     ALONG_AXIS_LIST: [ 'x' ]
 
+  # randomly rotate the scene within +- 45 degree
   - NAME: random_world_rotation
     WORLD_ROT_ANGLE: [ -0.78539816, 0.78539816 ]
 
+  # randomly scale the scene between 95% and 105%
   - NAME: random_world_scaling
     WORLD_SCALE_RANGE: [ 0.95, 1.05 ]
 
 # anchor box related
 postprocess:
   core_method: 'VoxelPostprocessor' # VoxelPostprocessor, BevPostprocessor supported
-  anchor_args:
+  anchor_args: # defines anchor box sizes, orientations and their ranges
     cav_lidar_range: *cav_lidar
     l: 3.9
     w: 1.6
@@ -48,15 +52,16 @@ postprocess:
     r: [0, 90]
     feature_stride: 4
     num: &achor_num 2
-  target_args:
+  target_args: # thresholds for positive/negative samples and objectness score
     pos_threshold: 0.6
     neg_threshold: 0.45
     score_threshold: 0.20
-  order: 'hwl' # hwl or lwh
+  order: 'hwl' # hwl or lwh (height width length)
   max_num: 100 # maximum number of objects in a single frame. use this number to make sure different frames has the same dimension in the same batch
-  nms_thresh: 0.15
+  nms_thresh: 0.15 # non-maximum suppression threshold
 
 # model related
+# model architecture
 model:
   core_method: point_pillar_v2vnet
   args:
@@ -67,7 +72,7 @@ model:
     compression: 0 # compression rate
     backbone_fix: false
 
-    pillar_vfe:
+    pillar_vfe: #pillar feature extraction settings
       use_norm: true
       with_distance: false
       use_absolute_xyz: true
@@ -75,20 +80,20 @@ model:
     point_pillar_scatter:
       num_features: 64
 
-    base_bev_backbone:
+    base_bev_backbone: # backbone network for BEV
       layer_nums: [3, 5, 8]
       layer_strides: [2, 2, 2]
       num_filters: [64, 128, 256]
       upsample_strides: [1, 2, 4]
       num_upsample_filter: [128, 128, 128]
-    shrink_header:
+    shrink_header: # additional head for feature dimensionality reduction
       kernal_size: [ 3 ]
       stride: [ 2 ]
       padding: [ 1 ]
       dim: [ 256 ]
       input_dim: 384 # 128 * 3
 
-    v2vfusion:
+    v2vfusion: # settings for V2VNet feature fusion including GRU and aggregation operator
       voxel_size: *voxel_size
       downsample_rate: 4
       num_iteration: 2
@@ -104,18 +109,20 @@ model:
 
       # add decoder later
 
+# loss function
 loss:
   core_method: point_pillar_loss
   args:
     cls_weight: 1.0
-    reg: 2.0
+    reg: 2.0 # classification and regression weights
 
+# learning rate scheduler
 optimizer:
   core_method: Adam
   lr: 0.001
   args:
     eps: 1e-10
-    weight_decay: 1e-4
+    weight_decay: 1e-4 # decays learning rate at epochs 10,50 and 80 by a factor of 0.1
 
 lr_scheduler:
   core_method: multistep #step, multistep and Exponential support
