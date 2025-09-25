@@ -6,6 +6,19 @@
 """
 Convert lidar to voxel. This class was manually designed, and we recommend
 to use sp_voxel_preprocessor.
+
+This file defines a VoxelPreprocessor class in Python, used for converting raw LiDAR point cloud data
+into a voxel representation. This is commonly used in 3D perception tasks in autonomous driving or robotics.
+The implementation inherits from a base class BasePreprocessor, and organizes point cloud data into voxels, 
+which are small cubes in 3D space.
+
+PyTorch Collate Function: A function that combines multiple data samples into a batch for deep learning model training.
+
+Notable Details
+- The output voxel grid is sparse (only non-empty voxels are stored).
+- Each voxel can store up to T points; excess points are truncated.
+- Voxel features are augmented with the offset from the mean of the points in the voxel.
+- The code is designed to integrate with PyTorch’s DataLoader via custom collate functions.
 """
 import sys
 
@@ -20,11 +33,14 @@ class VoxelPreprocessor(BasePreprocessor):
     def __init__(self, preprocess_params, train):
         super(VoxelPreprocessor, self).__init__(preprocess_params, train)
         # TODO: add intermediate lidar range later
+        # defines the spatial limits for voxelization
         self.lidar_range = self.params['cav_lidar_range']
 
+        # voxel width, height, depth
         self.vw = self.params['args']['vw']
         self.vh = self.params['args']['vh']
         self.vd = self.params['args']['vd']
+        # maximum number of points per voxel (for uniformity)
         self.T = self.params['args']['T']
 
     def preprocess(self, pcd_np):
@@ -33,9 +49,10 @@ class VoxelPreprocessor(BasePreprocessor):
 
         Parameters
         ----------
-        pcd_np : np.ndarray
+        pcd_np : np.ndarray 
             The raw lidar.
-
+            a numpy array of raw LiDAR points, shape typically (N, 3) or (N, 4).
+            
         Returns
         -------
         data_dict : the structured output dictionary.
@@ -49,7 +66,8 @@ class VoxelPreprocessor(BasePreprocessor):
                                             self.lidar_range[2]])) / (
                              self.vw, self.vh, self.vd))).astype(np.int32)
 
-        # convert to  (D, H, W) as the paper
+        # convert to  (D, H, W) as the paper 
+        # puts coordinates in (D,H,W) order
         voxel_coords = voxel_coords[:, [2, 1, 0]]
         voxel_coords, inv_ind, voxel_counts = np.unique(voxel_coords, axis=0,
                                                         return_inverse=True,
@@ -70,6 +88,7 @@ class VoxelPreprocessor(BasePreprocessor):
                                                      axis=1)
             voxel_features.append(voxel)
 
+        # Returns a dictionary with voxel_features (shape [n_voxels, T, 7]) and their voxel_coords.
         data_dict['voxel_features'] = np.array(voxel_features)
         data_dict['voxel_coords'] = voxel_coords
 
@@ -88,6 +107,9 @@ class VoxelPreprocessor(BasePreprocessor):
         -------
         processed_batch : dict
             Updated lidar batch.
+
+        If batch is a list, calls collate_batch_list() (each item is a dictionary for one frame).
+        If batch is a dict, calls collate_batch_dict() (batched by key).
         """
 
         if isinstance(batch, list):
@@ -114,7 +136,9 @@ class VoxelPreprocessor(BasePreprocessor):
         """
         voxel_features = []
         voxel_coords = []
-
+        
+        # Combines a list of dictionaries (one per sample) into a single batch.
+        # Pads the voxel coordinates with a batch index.
         for i in range(len(batch)):
             voxel_features.append(batch[i]['voxel_features'])
             coords = batch[i]['voxel_coords']
@@ -122,6 +146,7 @@ class VoxelPreprocessor(BasePreprocessor):
                 np.pad(coords, ((0, 0), (1, 0)),
                        mode='constant', constant_values=i))
 
+        # Returns a dict with batched voxel_features and voxel_coords as PyTorch tensors.
         voxel_features = torch.from_numpy(np.concatenate(voxel_features))
         voxel_coords = torch.from_numpy(np.concatenate(voxel_coords))
 
@@ -133,7 +158,10 @@ class VoxelPreprocessor(BasePreprocessor):
         """
         Collate batch if the batch is a dictionary,
         eg: {'voxel_features': [feature1, feature2...., feature n]}
-
+        
+        Similar to the above but for when input is a dictionary of lists (batched by key)
+        Combines and pads voxel coordinates with batch indices, returns tensors.
+        
         Parameters
         ----------
         batch : dict
