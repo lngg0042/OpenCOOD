@@ -46,10 +46,18 @@ class BasePostprocessor(object):
         """
         The base postprocessor will generate 3d groundtruth bounding box.
 
+        Loops through each CAV’s data.
+        Extracts transformation matrix, object centers, masks, and IDs.
+        Converts object centers to box corners (using box_utils), then projects them to the ego frame.
+        Collects all ground-truth boxes and their IDs.
+        Stacks them into a tensor, filters duplicates by ID.
+        Filters boxes to keep only those within a certain range (using box_utils).
+        
         Parameters
         ----------
         data_dict : dict
             The dictionary containing the origin input data of model.
+            Dictionary containing raw model input data, keyed by CAV id.
 
         Returns
         -------
@@ -102,6 +110,13 @@ class BasePostprocessor(object):
         Retrieve all objects in a format of (n, 7), where 7 represents
         x, y, z, l, w, h, yaw or x, y, z, h, w, l, yaw.
 
+        Imports GT_RANGE (ground-truth range) from the dataset module.
+        Aggregates all vehicles from all CAVs into a dictionary.
+        Determines the range to use for filtering (from params or GT_RANGE).
+        Uses box_utils.project_world_objects to project and filter objects into the reference frame.
+        Initializes arrays for object boxes, masks, and object IDs.
+        Fills these arrays with the projected, filtered objects.
+        
         Parameters
         ----------
         cav_contents : list
