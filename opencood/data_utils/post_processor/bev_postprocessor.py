@@ -4,21 +4,34 @@
 
 """
 Anchor-free 2d Generator
+
+Training: The class generates label maps from ground-truth data and provides batching utilities.
+Inference: The class takes network outputs, processes them into predicted 2D bounding boxes, applies NMS, and provides visualization tools.
+Anchor-Free: Unlike older detection heads that use grid anchors, this method is "anchor-free", assigning targets directly to pixels/voxels.
+
 """
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
+# Utility for converting discrete grid coordinates to continuous.
 from opencood.utils.transformation_utils import dist_to_continuous
+# Base class for post-processing.
 from opencood.data_utils.post_processor.base_postprocessor \
     import BasePostprocessor
+# Utilities for box manipulations, e.g., box corner calculation, NMS.
 from opencood.utils import box_utils
+# Visualization tools.
 from opencood.visualization import vis_utils
 
 
 class BevPostprocessor(BasePostprocessor):
     def __init__(self, anchor_params, train):
+        """
+        anchor_params: configuration for anchor/grid settings and a train flag
+        sets up geometry parameters, target mean and std for normalization/denormalization
+        """
         super(BevPostprocessor, self).__init__(anchor_params, train)
         # self.geometry_param = anchor_params["geometry"]
         self.geometry_param = anchor_params["geometry_param"]
@@ -29,11 +42,22 @@ class BevPostprocessor(BasePostprocessor):
         self.target_std_dev = np.array([0.866, 0.5, 0.954, 0.668, 0.09, 0.111])
 
     def generate_anchor_box(self):
+        """
+        anchor-free method
+        """
         return None
 
     def generate_label(self, **kwargs):
         """
         Generate targets for training.
+
+        Generates training labels for detection, using ground-truth box centers.
+        Process:
+        Validates box order (lwh).
+        Extracts valid ground-truth boxes and computes their BEV (2D) corners.
+        Converts box parameters into regression targets ([cos(yaw), sin(yaw), x, y, dx, dy]).
+        Creates a label map (classification + regression targets), updates it for each box, normalizes targets.
+        Returns a dictionary with the final label map and BEV corners.
 
         Parameters
         ----------
@@ -82,6 +106,13 @@ class BevPostprocessor(BasePostprocessor):
     def update_label_map(self, label_map, bev_corners, reg_targets):
         """
         Update label_map based on bbx and regression targets.
+        Updates the label map with classification and regression targets for each ground-truth box.
+
+        Process:
+        Discretizes the box corners into grid/frame coordinates.
+        Finds points within each bounding box for label assignment.
+        Calculates regression targets relative to those points.
+        Updates the label map with positive samples and regression targets.
 
         Parameters
         ----------
@@ -145,6 +176,9 @@ class BevPostprocessor(BasePostprocessor):
         """
         Normalize label_map
 
+        Normalize and denormalize the regression targets using precomputed mean 
+        and std, for improved network training and inference.
+        
         Parameters
         ----------
         label_map : numpy.array
@@ -221,7 +255,7 @@ class BevPostprocessor(BasePostprocessor):
         Process the outputs of the model to 2D bounding box.
         Step1: convert each cav's output to bounding box format
         Step2: project the bounding boxes to ego space.
-        Step:3 NMS
+        Step:3 NMS (Non-Maximum Suppression) to remove redundant boxes
 
         Parameters
         ----------
@@ -231,7 +265,7 @@ class BevPostprocessor(BasePostprocessor):
         output_dict :dict
             The dictionary containing the output of the model.
 
-        Returns
+        Returns: Final predicted boxes and scores
         -------
         pred_box2d_tensor : torch.Tensor
             The prediction bounding box tensor after NMS.
@@ -298,6 +332,7 @@ class BevPostprocessor(BasePostprocessor):
     def reg_map_to_bbx_corners(self, reg_map, mask):
         """
         Construct bbx from the regression output of the model.
+        Converts regression map predictions and masks into 2D bounding box corners.
 
         Parameters
         ----------
@@ -359,7 +394,7 @@ class BevPostprocessor(BasePostprocessor):
         output_dict :dict
             The dictionary containing the output of the model.
 
-        Returns
+        Returns: Only predicted boxes
         -------
         pred_box2d_tensor : torch.Tensor
             The prediction bounding box tensor after NMS.
