@@ -23,9 +23,17 @@ from opencood.visualization import vis_utils
 class VoxelPostprocessor(BasePostprocessor):
     def __init__(self, anchor_params, train):
         super(VoxelPostprocessor, self).__init__(anchor_params, train)
+        # Initializes the base postprocessor and stores the number of anchors per grid location.
         self.anchor_num = self.params['anchor_args']['num']
 
     def generate_anchor_box(self):
+        """
+        Uses parameters like grid width/height (W, H), anchor size (l, w, h), rotation angles r, voxel size (vw, vh), and spatial ranges.
+        Computes the center coordinates for each anchor
+        Stacks these into an array of anchor boxes with the specified order ('hwl' or 'lhw').
+
+        Returns: A numpy array of anchors shaped according to the grid and number of anchors.
+        """
         W = self.params['anchor_args']['W']
         H = self.params['anchor_args']['H']
 
@@ -77,14 +85,20 @@ class VoxelPostprocessor(BasePostprocessor):
 
     def generate_label(self, **kwargs):
         """
-        Generate targets for training.
+        Generate training targets (labels) for training. on ground truth boxes
+
+        How:
+        Takes ground-truth boxes, anchor boxes, and masks indicating valid boxes.
+        Calculates 2D IoU between ground-truth and anchor boxes using their "standup" 2D projections.
+        Labels anchors as positive, negative, or neutral based on IoU thresholds.
+        For positive samples, encodes the regression targets (offsets and scales) for training.
 
         Parameters
         ----------
         argv : list
             gt_box_center:(max_num, 7), anchor:(H, W, anchor_num, 7)
 
-        Returns
+        Returns: A dictionary with pos_equal_one, neg_equal_one, and regression targets.
         -------
         label_dict : dict
             Dictionary that contains all target related info.
@@ -237,8 +251,8 @@ class VoxelPostprocessor(BasePostprocessor):
         """
         Process the outputs of the model to 2D/3D bounding box.
         Step1: convert each cav's output to bounding box format
-        Step2: project the bounding boxes to ego space.
-        Step:3 NMS
+        Step2: project the bounding boxes to ego space. (for Non-Maximum Suppresion)
+        Step:3 NMS 
 
         Parameters
         ----------
@@ -248,7 +262,7 @@ class VoxelPostprocessor(BasePostprocessor):
         output_dict :dict
             The dictionary containing the output of the model.
 
-        Returns
+        Returns: Final predicted 3D boxes their scores
         -------
         pred_box3d_tensor : torch.Tensor
             The prediction bounding box tensor after NMS.
@@ -351,6 +365,10 @@ class VoxelPostprocessor(BasePostprocessor):
         """
         Convert the output delta to 3d bbx.
 
+        How:
+            Applies the inverse of the encoding used in generate_label.
+            Decodes position, size, and yaw angle using anchor parameters.
+
         Parameters
         ----------
         deltas : torch.Tensor
@@ -361,7 +379,7 @@ class VoxelPostprocessor(BasePostprocessor):
             Whether to swap the channel of deltas. It is only false when using
             FPV-RCNN
 
-        Returns
+        Returns: tensor of 3D bounding boxes
         -------
         box3d : torch.Tensor
             (N, W*L*2, 7)
