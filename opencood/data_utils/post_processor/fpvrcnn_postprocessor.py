@@ -1,5 +1,14 @@
 """
 3D Anchor Generator for Voxel
+
+Utility Functions & Modules Used
+box_utils: Various box conversions, projection, and NMS utilities.
+common_utils: General mathematical utilities (like rotating points).
+torch, numpy: For tensor and numerical operations.
+
+Both stage methods return:
+Final 3D bounding boxes (after NMS and projection).
+Their associated confidence scores.
 """
 import numpy as np
 import torch
@@ -15,6 +24,15 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
         super(FpvrcnnPostprocessor, self).__init__(anchor_params, train)
 
     def post_process(self, data_dict, output_dict, stage1=False):
+        """
+        Directs to two different post-processing stages:
+            Stage 1: Initial region proposal generation and selection.
+            onverts raw model outputs for each CAV (Collaborative Autonomous Vehicle) into 3D bounding boxes, 
+            projects them into ego-vehicle space, and applies Non-Maximum Suppression (NMS).
+            
+            Stage 2: Refinement of proposals using a second-stage head (like RCNN).
+            Refines box proposals using outputs from a second-stage RCNN head.
+        """
         if stage1:
             return self.post_process_stage1(data_dict, output_dict)
         else:
@@ -26,6 +44,17 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
         Step1: convert each cav's output to bounding box format
         Step2: project the bounding boxes to ego space.
         Step:3 NMS
+
+        Extracts model outputs and anchor boxes for each CAV.
+        Decodes regression outputs (delta_to_boxes3d) into bounding box coordinates.
+        Applies a score threshold to select high-confidence boxes.
+        Adjusts box orientations using direction classification outputs.
+        Applies further filtering: size constraints, and optionally downsampling if there are too many boxes (for efficiency).
+        Projects the boxes into ego-vehicle reference frame.
+        Converts 3D bounding boxes to 2D (bird's eye view) for easier NMS.
+        Concatenates results from all CAVs.
+        Applies NMS to remove overlapping boxes.
+        Returns: Final 3D bounding boxes and their scores.
 
         Parameters
         ----------
@@ -163,6 +192,17 @@ class FpvrcnnPostprocessor(VoxelPostprocessor):
         return batch_pred_boxes3d, batch_scores
 
     def post_process_stage2(self, data_dict):
+        """
+        Extracts the outputs of the RCNN head (classification, regression, IoU).
+        Computes overall scores as the product of classification score and IoU^4 (to penalize uncertain boxes).
+        Decodes box regression outputs relative to anchor boxes.
+        Transforms box coordinates from local to global space.
+        Applies a minimum score threshold.
+        Applies GPU-accelerated NMS (via iou3d_nms_utils.nms_gpu).
+        Reorders box dimensions as needed.
+        Projects boxes to ego-vehicle space if needed.
+        Returns: Final 3D bounding boxes and their scores.
+        """
         from opencood.pcdet_utils.iou3d_nms.iou3d_nms_utils import nms_gpu
 
         output_dict = data_dict['ego']['fpvrcnn_out']
