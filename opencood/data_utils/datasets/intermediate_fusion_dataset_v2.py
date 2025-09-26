@@ -5,6 +5,20 @@
 
 """
 Dataset class for 2-stage backbone intermediate fusion
+
+This file defines the IntermediateFusionDatasetV2 class, a dataset handler for intermediate fusion in cooperative 
+perception tasks, specifically for multi-agent (vehicle) collaborative 3D object detection using deep learning. The
+"intermediate fusion" approach means each vehicle processes its own data into deep features, then sends those features 
+(not raw data) to a central agent (ego vehicle), which fuses them for further processing.
+
+High Level Flow
+Data Loading: For each sample, loads all CAV data and projects into ego frame.
+Feature Extraction: Processes each CAV’s data: filters, transforms, and extracts features.
+Fusion: Merges all CAV features for input to the model.
+Batching: Collates multiple scenes into tensors for efficient model training.
+Post-Processing: Decodes model predictions into physical bounding boxes.
+Visualization: Supports qualitative evaluation of detection results.
+
 """
 import math
 from collections import OrderedDict
@@ -29,6 +43,10 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
     """
 
     def __init__(self, params, visualize, train=True):
+        """
+        Initializes the dataset pre post processsors using parameters
+        visualize and train flags control behaviour
+        """
         super(IntermediateFusionDatasetV2, self). \
             __init__(params, visualize, train)
         self.pre_processor = \
@@ -246,6 +264,9 @@ class IntermediateFusionDatasetV2(basedataset.BaseDataset):
         return merged_feature_dict
 
     def collate_batch_train(self, batch):
+        """
+        Handles merging of lidar data and object ids.
+        """
         # Intermediate fusion is different the other two
         output_dict = {'ego': {}}
 
