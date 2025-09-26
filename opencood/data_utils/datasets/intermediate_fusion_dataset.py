@@ -184,11 +184,17 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
             processed_data_dict['ego'].update({'origin_lidar':
                 np.vstack(
                     projected_lidar_stack)})
+            
+        # Pads/aligns all lists/tensors to max number of CAVs and returns a dictionary 
+        # containing all relevant information.
         return processed_data_dict
 
     def get_item_single_car(self, selected_cav_base, ego_pose):
         """
         Project the lidar and bbx to ego space first, and then do clipping.
+
+        Projects a single CAV's lidar data and bounding boxes into ego reference frame, 
+        filters points, processes features, and normalizes velocity.
 
         Parameters
         ----------
@@ -366,6 +372,9 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
         return output_dict
 
     def collate_batch_test(self, batch):
+        """
+        Ensures batch size of 1 for testing, adds anchor box and transformation matrix for evaluation.
+        """
         assert len(batch) <= 1, "Batch size 1 is required during testing!"
         output_dict = self.collate_batch_train(batch)
 
@@ -412,6 +421,9 @@ class IntermediateFusionDataset(basedataset.BaseDataset):
     def get_pairwise_transformation(self, base_data_dict, max_cav):
         """
         Get pair-wise transformation matrix accross different agents.
+
+        If proj_first is true, all transformations are identity (since all data projected to ego coordinates).
+        Otherwise, computes actual transformation matrices from each CAV to every other CAV.
 
         Parameters
         ----------
