@@ -1,5 +1,21 @@
 """
 3D Anchor Generator for Voxel
+
+ convert neural network outputs into physical 3D/2D bounding box predictions, and to apply filtering, projection, and 
+ Non-Maximum Suppression (NMS)
+
+The class is designed for both training and inference/validation modes.
+It supports multi-agent systems, handling each CAV's output separately and then transforming boxes to a shared ego-vehicle coordinate frame.
+It leverages several utilities to convert, filter, and suppress bounding box predictions.
+
+High Level Purpose
+Post-processes model outputs: Takes raw outputs (probabilities, bounding box regressions, etc.) from the model and converts them into interpretable 3D/2D bounding box predictions.
+Handles multi-agent (CAV) setups: Each agent/car (CAV) may have its own output, which must be transformed into the ego vehicle's coordinate frame.
+Performs filtering and NMS: Filters out low-scoring boxes and suppresses overlapping predictions.
+
+Helper Functions/Classes
+delta_to_boxes3d: Decodes regression predictions back to bounding box coordinates.
+box_utils functions: Used for box conversion, projection, NMS, and filtering.
 """
 import math
 import sys
@@ -34,7 +50,7 @@ class CiassdPostprocessor(VoxelPostprocessor):
         output_dict :dict
             The dictionary containing the output of the model.
 
-        Returns
+        Returns: the final bounding boxes and scores
         -------
         pred_box3d_tensor : torch.Tensor
             The prediction bounding box tensor after NMS.
@@ -47,6 +63,9 @@ class CiassdPostprocessor(VoxelPostprocessor):
         pred_box3d_list = []
         pred_box2d_list = []
 
+        # iterate over cavs
+        # Get the transformation matrix to the ego frame.
+        # Get anchor boxes and model predictions (cls_preds, box_preds, iou_preds, dir_cls_preds).
         for cav_id, cav_content in data_dict.items():
             assert cav_id in output_dict
             # the transformation matrix to ego space
@@ -63,6 +82,11 @@ class CiassdPostprocessor(VoxelPostprocessor):
             preds_dict = output_dict[cav_id]['preds_dict_stage1']
 
             # preds
+            # Class probabilities: Apply sigmoid to get probabilities.
+            # Regression and direction: Reshape as needed.
+            # Bounding box decode: Use delta_to_boxes3d to convert regression maps to 3D bounding boxes.
+            # Score mask: Mask boxes by score threshold.
+            # Direction correction: Adjust box orientation using direction predictions.
             prob = preds_dict['cls_preds']
             prob = torch.sigmoid(prob.permute(0, 2, 3, 1).contiguous())
             reg = preds_dict['box_preds'].permute(0, 2, 3, 1).contiguous()
@@ -71,6 +95,10 @@ class CiassdPostprocessor(VoxelPostprocessor):
 
             # convert regression map back to bounding box
             # (N, W*L*anchor_num, 7)
+            # Convert 3D bounding boxes to corner points.
+            # Project corners into ego space.
+            # Convert 3D corners to 2D bounding boxes.
+            # Concatenate scores with 2D boxes.
             batch_box3d = self.delta_to_boxes3d(reg, anchor_box, False)
             mask = torch.gt(prob, self.params['target_args']['score_threshold'])
             batch_num_box_count = [int(m.sum()) for m in mask]
